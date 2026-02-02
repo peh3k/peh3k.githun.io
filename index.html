@@ -1,0 +1,1589 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Assistente de Gastos</title>
+  <style>
+    :root{--bg:#f7fafc;--card:#fff;--accent:#2563EB;--danger:#ef4444}
+    /* predictable sizing and prevent overflow */
+    *,*::before,*::after{box-sizing:border-box}
+    html,body{height:100%}
+    body{font-family:Inter,system-ui,Arial,Helvetica,sans-serif;margin:0;background:var(--bg);color:#0f172a;-webkit-font-smoothing:antialiased}
+    /* make container fill viewport and remove bottom padding so the main card can reach bottom */
+    .container{height:100vh;display:flex;flex-direction:column;max-width:100%;width:100%;margin:0;padding:16px 16px 0 16px;position:relative}
+    /* fixed header height so we can calculate remaining viewport for the main card */
+    .app-header{padding-left:76px;padding-right:16px;padding-top:18px;padding-bottom:18px;display:flex;align-items:center;gap:12px;border-bottom:1px solid #eef2f7;margin-bottom:0;min-height:64px;height:64px;flex:0 0 64px}
+    .app-header h1{margin:0;font-size:16px}
+    .app-header h1 .month-label{font-family:'Brush Script MT','Dancing Script','Lucida Handwriting',cursive;font-style:italic;font-size:28px;margin-left:10px;color:#374151;font-weight:700}
+    .home-month-caption{font-family:'Brush Script MT','Dancing Script','Lucida Handwriting',cursive;font-style:italic;font-size:26px;color:#374151;font-weight:700;margin-left:6px}
+    .card{background:var(--card);padding:16px;border-radius:10px;box-shadow:0 4px 14px rgba(2,6,23,.06)}
+     /* make first-level card fill remaining viewport height so page equals screen height
+       and ensure it stretches to the bottom of the viewport */
+    .container > .card:first-of-type{flex:1 1 auto;min-height:0;display:flex;flex-direction:column;height:auto;margin-bottom:0;overflow:auto}
+    /* ensure tab content can scroll if needed and fill remaining viewport height */
+    .tab-content{flex:1 1 auto;min-height:calc(100vh - 80px);overflow:auto}
+      /* keep the totals box pinned to the top of the left column */
+      /* remove border and shadow per user request */
+      #home-totals{position:sticky;top:8px;z-index:3;width:100%;box-shadow:none !important;border:none !important;background:transparent !important;border-radius:0 !important}
+    /* compact vertical spacing inside tabs when constrained */
+    .tab-content .card{margin-bottom:8px}
+    .tab-content .card:last-child{margin-bottom:0}
+    h1{margin:0 0 12px;font-size:20px}
+    form{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+    /* allow flex children to shrink and not overflow */
+    form > *{min-width:0}
+    input,select{padding:10px;border:1px solid #e6edf3;border-radius:8px;font-size:15px;max-width:100%;min-width:0}
+    input[type=number]{-moz-appearance:textfield}
+    button{background:var(--accent);color:#fff;border:0;padding:10px 14px;border-radius:8px;cursor:pointer;font-size:15px;max-width:100%}
+    button.ghost{background:transparent;color:var(--accent);border:1px solid rgba(79,70,229,.12)}
+    /* month picker arrow buttons should show SVG icons (override default white text color) */
+    #home-month-prev, #home-month-next { color: #374151; padding:0; display:inline-flex; align-items:center; justify-content:center }
+    table{width:100%;border-collapse:collapse;margin-top:12px}
+    th,td{padding:10px;border-bottom:1px solid #eef2f7;text-align:left;vertical-align:middle}
+    .right{text-align:right}
+    .small{font-size:13px;color:#475569}
+    .actions button{margin-right:6px}
+    .report{margin-top:12px}
+    .flex{display:flex;gap:8px;align-items:center;flex:0 0 auto}
+    .kind-indicator{display:inline-flex;align-items:center;gap:6px}
+    .arrow{font-weight:700;font-size:14px;line-height:1}
+    .arrow.income{color:#16a34a}
+    .arrow.expense{color:#dc2626}
+    .alert-icon{color:#dc2626;font-weight:700;margin-left:8px}
+    .income-amount{color:#16a34a;font-weight:700;margin-left:8px}
+    .expense-amount{color:#dc2626;font-weight:700;margin-left:8px}
+    .mini-cards{display:flex;gap:8px;align-items:stretch}
+    .mini-card{flex:1 1 0;background:var(--card);padding:10px;border-radius:8px;box-shadow:0 4px 10px rgba(2,6,23,.05);display:flex;flex-direction:column;justify-content:space-between;min-width:0}
+    .mini-card .label{font-size:12px;color:#000;display:flex;align-items:center;gap:8px}
+    .mini-card .icon{width:22px;height:22px;border-radius:6px;display:inline-flex;align-items:center;justify-content:center;background:rgba(34,197,94,0.08);color:#16a34a;font-size:12px}
+    .mini-card.expense .icon{background:rgba(239,68,68,0.08);color:#dc2626}
+    .mini-card .value{font-size:18px;font-weight:700;margin-top:6px;color:#000;text-align:right;display:inline-block;min-width:110px}
+    /* ensure amounts inside mini-cards are black too */
+    .mini-card .income-amount, .mini-card .expense-amount{color:#000 !important}
+    /* For the summary (saldo) inside #home-totals, show positive green and negative red */
+    #home-totals .mini-card:nth-child(3) .income-amount { color: #16a34a !important }
+    #home-totals .mini-card:nth-child(3) .expense-amount { color: #dc2626 !important }
+    .mini-card .trend{font-size:12px;color:#94a3b8;display:flex;align-items:center;gap:6px}
+    .pct-change{font-size:12px;margin-left:8px;font-weight:600;display:inline-flex;align-items:center;gap:4px}
+    .pct-change.positive{color:#16a34a}
+    .pct-change.negative{color:#ef4444}
+    @media(max-width:700px){
+      .mini-cards{flex-direction:column}
+    }
+     /* layout for daily chart + top categories */
+     /* align-items:flex-start so the right column (categories) sizes to its content
+       and does not leave blank space when it has fewer items than the chart column */
+     .daily-row{display:flex;gap:12px;align-items:flex-start;margin-top:8px}
+    .daily-row .chart-col{flex:2}
+    .daily-row .cats-col{flex:1;min-width:180px}
+    .top-cats{display:flex;flex-direction:column;gap:10px}
+    .top-cat{display:flex;align-items:center;gap:8px}
+    .top-cat .dot{width:10px;height:10px;border-radius:50%}
+    .top-cat .label{flex:1;color:#374151;font-weight:600;font-size:13px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .top-cat .bar{flex:1;height:8px;background:#f1f5f9;border-radius:6px;overflow:hidden;margin-left:8px;margin-right:8px}
+    .top-cat .bar > i{display:block;height:100%;background:linear-gradient(90deg,#f97316,#ef4444);border-radius:6px}
+    .top-cat .pct{width:46px;text-align:right;color:#475569;font-weight:700}
+
+     /* make top categories column stretch to match adjacent chart column
+       and allow its list to scroll when content overflows */
+     .daily-row > div{min-height:0}
+     .daily-row .cats-col{display:flex;flex-direction:column;min-height:0}
+    /* make the categories column size to its content (no stretching) */
+    #home-top-categories{flex:0 0 auto;display:flex;flex-direction:column;min-height:0;height:auto}
+    #home-top-categories .top-cats{flex:0 0 auto;overflow:visible;min-height:0}
+    @media (max-width:900px){
+      .daily-row{flex-direction:column}
+    }
+    @media (max-width:700px){
+      .daily-row{gap:8px}
+      .daily-row .chart-col, .daily-row .cats-col{width:100%;min-width:0}
+      .daily-row .chart-col{order:1}
+      .daily-row .cats-col{order:2}
+      .top-cat .label{font-size:13px}
+      #tab-transactions table td{padding-top:6px;padding-bottom:6px}
+      /* ensure actions cell can size normally on small screens */
+      #tab-transactions table td.actions{width:auto;white-space:normal}
+      /* Reduce gap for delete buttons only inside transactions actions cell */
+      #tab-transactions table td.actions .delete-btn{padding:2px 6px;margin:0}
+    }
+    @media (max-width:480px){
+      .daily-row{gap:6px}
+      .daily-row .chart-col{padding:8px}
+      .daily-row .cats-col{padding:8px}
+      .top-cat{gap:6px}
+      .top-cat .label{font-size:12px}
+      .top-cat .pct{width:40px;font-size:12px}
+      .top-cat .bar{margin-left:6px;margin-right:6px}
+      /* reduce canvas heights on very small screens */
+      .chart-col canvas, #home-income{height:160px !important}
+      /* make category dots and bars a bit smaller on very small screens */
+      .top-cat .dot{width:8px;height:8px}
+      /* Allow categories column to expand fully on very small screens so all items are visible */
+      .daily-row .cats-col{max-height:none;overflow:visible}
+      #home-top-categories{flex:initial}
+      #home-top-categories .top-cats{flex:initial;overflow:visible;max-height:none}
+    }
+
+    /* Ensure daily chart container uses flex so canvas can fill available height without distortion */
+    .chart-col{display:flex;flex-direction:column}
+    .chart-canvas-wrapper{flex:1;min-height:0}
+    .chart-col canvas{display:block;width:100%;height:100% !important;max-height:70vh}
+    /* Ajuste: reduzir altura do gráfico de Despesas Diárias para caber na tela */
+    #home-daily-expenses{height:300px !important;max-height:60vh}
+    @media (max-width:700px){
+      .chart-col canvas{height:220px !important}
+      /* tablet/mobile: reduzir altura do gráfico diário */
+      #home-daily-expenses{height:260px !important}
+      /* mobile: ensure home-totals appears first on small screens */
+      #home-totals{order:-1;position:sticky;top:72px;z-index:50}
+      /* reduce spacing so totals are visible without extra scrolling */
+      .card{margin-top:6px}
+    }
+    /* Additional small-device responsiveness tweaks */
+    @media (max-width:700px){
+      /* Stack add/transaction form fields and make controls full-width */
+      #tab-transactions form, #tab-transactions .card form{display:flex;flex-direction:column;gap:8px}
+      /* on small screens let tab content size naturally (don't force full viewport) */
+      .tab-content{flex:initial;min-height:0;overflow:visible}
+      #tab-transactions input, #tab-transactions select, #tab-transactions button{width:100%}
+      /* Make delete buttons full width inside transactions on small screens */
+      #tab-transactions table td.actions{display:block;padding:6px 0;overflow:visible}
+      #tab-transactions table td.actions .delete-btn{display:block !important;width:100% !important;padding:8px !important;margin:0 !important;border-radius:6px !important;background:var(--danger) !important;color:#fff !important;visibility:visible !important;opacity:0.9 !important}
+      #tab-transactions table td.actions .delete-btn:hover{background:rgba(220,38,38,0.95) !important}
+      /* Reduce card paddings and gaps to fit viewport */
+      .card{padding:10px}
+      .daily-row{gap:6px}
+      /* Ensure charts have enough height but not overflow */
+      .chart-col canvas{height:220px !important}
+      #home-daily-expenses{height:240px !important}
+      /* Make home-totals visible first but not overlap */
+      #home-totals{order:-1;position:static;top:auto;z-index:inherit;margin-bottom:8px}
+      body{overflow:auto}
+    }
+    @media (max-width:480px){
+      /* mobile: ensure charts are visible without overflow */
+      .chart-col canvas{height:180px !important}
+      /* mobile: daily expenses compact height */
+      #home-daily-expenses{height:200px !important}
+      /* make wrapper not force flex height on very small screens */
+      .chart-canvas-wrapper{flex:initial}
+      /* limit recent transactions height so page fits and allow scrolling on small screens */
+      #home-recent{max-height:140px;overflow:auto}
+      /* reduce gaps/padding to help content fit inside viewport */
+      .daily-row{gap:6px;padding:6px}
+      .chart-col.card.small{padding:8px}
+      /* mobile: ensure home-totals sits at top under header
+        but avoid sticky to prevent overlap on very small screens */
+      #home-totals{order:-1;position:static;top:auto;z-index:inherit;margin-bottom:8px}
+    }
+
+    /* Desktop: allow recent transactions area to show up to 8 items (scroll if more) */
+    @media (min-width:700px){
+      /* let recent transactions fill available space inside its parent */
+      #home-recent{max-height:100%;height:100%;overflow:auto}
+    }
+    /* Normalize all chart canvases to avoid CSS distortion; parent controls height */
+    canvas{display:block;max-width:100%}
+    #home-bar, #home-income, #report-chart, #bar-chart {height:220px !important}
+    @media (max-width:700px){ #home-bar, #home-income, #report-chart, #bar-chart {height:200px !important} }
+    @media (max-width:480px){ #home-bar, #home-income, #report-chart, #bar-chart {height:180px !important} }
+
+    /* Compact layout when viewport height is limited so nothing is cut */
+    @media (max-height:800px){
+      .container{padding:8px}
+      .card{padding:10px}
+      .mini-card .value{font-size:15px}
+      .chart-col canvas{height:200px !important}
+      #home-bar, #home-income, #report-chart, #bar-chart {height:180px !important}
+      .top-cat .label{font-size:12px}
+      .top-cat .pct{font-size:12px}
+      .top-cats{gap:6px}
+    }
+    @media (max-height:700px){
+      .container{padding:6px}
+      .card{padding:8px}
+      body{font-size:14px}
+      .chart-col canvas{height:180px !important}
+      #home-bar, #home-income, #report-chart, #bar-chart {height:160px !important}
+      .mini-cards{gap:6px}
+      .top-cat .label{font-size:11px}
+    }
+    @media (max-height:600px){
+      .container{padding:4px}
+      .card{padding:6px}
+      body{font-size:13px}
+      .chart-col canvas{height:150px !important}
+      #home-bar, #home-income, #report-chart, #bar-chart {height:140px !important}
+      .mini-card .value{font-size:14px}
+      .top-cat .label{font-size:10px}
+      .top-cat .pct{font-size:10px}
+    }
+
+    /* On small screens allow the whole page to scroll instead of fixing viewport */
+    @media (max-width:700px){
+      body{overflow:auto}
+      .container{height:auto;min-height:100vh}
+      .container > .card:first-of-type{flex:initial}
+      .container > .card:first-of-type .tab-content{max-height:none;overflow:visible}
+    }
+    /* Small devices adjustments */
+    @media (max-width:480px) {
+      .mini-cards{flex-direction:column;gap:8px}
+      .mini-card{padding:8px;border-radius:8px;box-shadow:0 2px 8px rgba(2,6,23,.04)}
+      .mini-card .label{font-size:11px}
+      .mini-card .value{font-size:16px}
+      .mini-card .icon{width:18px;height:18px;font-size:11px}
+      .mini-hamburger{width:14px}
+      .mini-hamburger i{height:1px;margin:1px 0}
+      .home-alert{padding:6px 8px;margin-bottom:12px}
+      .home-alert .msg > div{font-size:12px}
+      .home-alert .actions button{padding:6px 8px;font-size:13px}
+      .overview-filters{gap:6px}
+      .overview-filters > *{width:100%}
+      .overview-filters select,input,button{font-size:14px;padding:8px}
+      .overview-tables{gap:12px}
+      .overview-table{padding:0 8px}
+    }
+    .mini-hamburger{display:inline-block;width:16px}
+    .mini-hamburger i{display:block;height:1.5px;background:#374151;border-radius:1px;margin:2px 0}
+    .home-alert{background:#fff7f7;border:1px solid #fee2e2;color:#7f1d1d;padding:8px 10px;border-radius:8px;margin-bottom:16px;display:inline-flex;align-items:center;justify-content:space-between;gap:12px;font-size:13px;flex-wrap:nowrap;width:auto;max-width:none;margin:0;opacity:0;transform:translateY(-6px);transition:opacity .22s ease,transform .22s ease;white-space:nowrap;overflow:hidden}
+    .home-alert .msg{display:flex;gap:8px;align-items:center;min-width:0;overflow:hidden}
+    .home-alert .msg span{font-size:14px}
+    /* prevent message from wrapping; truncate with ellipsis when too long */
+    .home-alert .msg > div{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+
+    /* On desktop align the alert to the left and set it to occupy one third of the parent width */
+    @media (min-width:900px){
+      .home-alert{max-width:none;width:auto;margin:0 0 16px 0;align-self:flex-start}
+    }
+    .home-alert.show{opacity:1;transform:none}
+    .home-alert .actions{white-space:nowrap;flex:0 0 auto}
+    .home-alert .actions button{background:var(--danger);color:#fff;border:0;padding:8px 10px;border-radius:6px;cursor:pointer;font-weight:600;white-space:nowrap}
+    /* smaller alert icon when shown inside mini-cards */
+    .mini-card .alert-icon{font-size:12px;line-height:1;margin-left:6px;vertical-align:middle}
+    .home-alert .actions button:hover{filter:brightness(.95)}
+    .overview-tables{display:flex;gap:0;flex-wrap:wrap}
+    .overview-table{flex:1 1 320px;padding:0 12px}
+    .overview-table + .overview-table{border-left:1px solid #e5e7eb}
+    .overview-title{font-size:16px;font-weight:700}
+
+    /* Mobile-first responsiveness */
+    @media(max-width:900px){
+      .container{padding:12px;margin:12px}
+      input,select,button{font-size:16px}
+      .overview-tables{flex-direction:column;gap:12px}
+      .overview-table{padding:0}
+      .overview-table + .overview-table{border-left:0;border-top:1px solid #e5e7eb;padding-top:12px}
+    }
+
+    @media(max-width:700px){
+      .overview-filters{flex-direction:column;align-items:stretch}
+      .overview-filters > *{width:100%}
+      .overview-filters label{margin-top:4px}
+      .overview-filters button{width:100%}
+    }
+
+    /* Drawer (hamburger) menu */
+    .hamburger{position:fixed;left:12px;top:12px;z-index:160;background:var(--bg);color:#fff;border:0;padding:0;width:44px;height:44px;border-radius:8px;cursor:pointer;box-shadow:0 6px 18px rgba(15,23,42,.06);display:flex;align-items:center;justify-content:center}
+    .hamburger-icon{display:inline-block;width:22px}
+    .hamburger-icon i{display:block;height:2px;background:#374151;border-radius:2px;margin:4px 0}
+    .drawer{position:fixed;left:-280px;top:0;width:260px;height:100%;background:var(--card);box-shadow:2px 0 12px rgba(2,6,23,.12);padding:18px;transition:left .22s ease;z-index:120}
+    .drawer.open{left:0}
+    .drawer .tab-btn{display:flex;align-items:center;gap:12px;width:100%;text-align:left;padding:12px 14px;height:52px;border-radius:8px;background:transparent;border:0;margin-bottom:8px;color:#0f172a;font-size:15px}
+    .drawer .tab-btn:hover{background:#f8fafc}
+    .drawer .tab-btn:focus{outline:2px solid rgba(79,70,229,.14)}
+    .drawer .tab-btn .menu-icon{width:22px;height:22px;display:inline-flex;align-items:center;justify-content:center;color:#374151}
+    .drawer .tab-btn .menu-label{flex:1 1 auto;text-align:left}
+    .drawer .tab-btn.active{background:#eef2f7}
+    .drawer-overlay{position:fixed;top:0;left:260px;right:0;bottom:0;background:rgba(2,6,23,.35);display:none;z-index:65}
+    .drawer-overlay.open{display:block}
+
+    /* on small screens overlay should cover full viewport when drawer slides in */
+    @media (max-width:900px){
+      .drawer-overlay{left:0}
+    }
+
+    @media(max-width:900px){
+      form{flex-direction:column;align-items:stretch}
+      input,select,button{width:100%}
+      .flex{width:100%;justify-content:flex-start}
+    }
+
+    /* on wider screens leave space at left for the hamburger so it doesn't overlap the card */
+    @media(min-width:700px){
+      .app-header{padding-left:140px}
+    }
+
+    /* On large screens show drawer permanently and remove hamburger */
+    @media(min-width:900px){
+      .drawer{left:0;position:fixed;top:0;width:260px;height:100%;box-shadow:2px 0 12px rgba(2,6,23,.06)}
+      .drawer.open{left:0}
+      .drawer-overlay{display:none !important}
+      .hamburger{display:none}
+      /* keep body content clear of the drawer: shift and constrain width so it sits beside the drawer
+        increase gap between the drawer (260px) and the content to 60px -> total shift 320px */
+      .container{margin-left:320px;width:calc(100% - 320px);max-width:calc(100% - 320px)}
+      .app-header{padding-left:16px}
+    }
+
+      /* ensure hamburger stays top-left on small screens */
+      .hamburger{left:12px; right:auto}
+
+      /* on small screens make drawer slide in from the left and be a panel (not full width) */
+      .drawer{width:80%;max-width:320px;left:-100%;right:auto}
+      .drawer.open{left:0;right:auto}
+
+      /* transform table into stacked cards for small screens */
+      @media (max-width:700px) {
+        table, thead, tbody, th, td, tr{display:block}
+        thead{display:none}
+        tr{margin:10px 0;padding:12px;border:1px solid #eef2f7;border-radius:8px;background:#fff}
+        td{padding:6px 0;border:0}
+        td:before{content:attr(data-label);display:inline-block;color:#475569;font-weight:600;width:100px}
+        .right{text-align:left}
+        .actions{margin-top:8px}
+        .actions button{width:auto;padding:8px 10px}
+      }
+
+    /* Fix: ensure date inputs don't overflow on very small screens */
+    @media (max-width:480px) {
+      #tab-transactions input[type="date"] {
+        width:100% !important;
+        max-width:100% !important;
+        min-width:0 !important;
+        box-sizing:border-box !important;
+      }
+    }
+
+    /* Make export/import buttons fit on small screens */
+    @media (max-width:480px) {
+      .export-controls{flex-wrap:wrap;gap:8px}
+      .export-controls button{flex:1 1 45%;min-width:0;padding:8px 8px;font-size:14px}
+      .export-controls input{flex:1 1 45%;min-width:0}
+    }
+
+    /* Additional iPhone-specific safeguards: allow date inputs to shrink inside flex containers */
+    input[type="date"]{
+      min-width:0;
+      max-width:100%;
+      box-sizing:border-box;
+      background: #fff;
+      color: inherit;
+      /* keep native appearance on iOS so value is visible */
+      -webkit-appearance: textfield;
+    }
+    /* Filter modal removed */
+    /* small red trash button for category removal */
+    .remove-cat{background:transparent;border:0;color:var(--danger);padding:4px;border-radius:6px;display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;cursor:pointer;margin-left:8px}
+    .remove-cat:hover{background:rgba(239,68,68,0.06)}
+    .remove-cat svg{width:14px;height:14px;fill:currentColor}
+    /* On larger screens keep remove buttons compact without rounding/gaps */
+    @media (min-width:701px){
+      .remove-cat{border-radius:0;margin:0;padding:4px;width:24px;height:24px}
+      .remove-cat svg{width:12px;height:12px}
+    }
+    /* On larger screens remove external gap around transaction delete button */
+    @media (min-width:701px){
+      .actions{padding:0;text-align:right}
+      /* Make delete buttons size to content: short as the label */
+      .actions .delete-btn{display:inline-block;width:auto;margin:0;padding:4px 6px;border-radius:0;background:rgba(239,68,68,0.5);color:#fff;white-space:nowrap;overflow:visible;transition:background-color .18s ease,transform .12s ease}
+      .actions .delete-btn:hover{background:rgba(220,38,38,0.95);transform:translateY(-1px)}
+      /* keep table cells vertically tight */
+      /* make the actions cell as narrow as possible so delete buttons don't take extra width */
+      #tab-transactions table td{padding-top:6px;padding-bottom:6px}
+      #tab-transactions table td.actions{width:1%;white-space:nowrap}
+    }
+    /* delete button in transactions (red button labeled 'Apagar') */
+    .delete-btn{background:var(--danger);border:0;color:#fff;padding:8px 10px;border-radius:0;display:block;align-items:center;justify-content:center;cursor:pointer;font-weight:600;box-sizing:border-box;width:100%}
+    /* ensure the actions cell has no external gap by default */
+    .actions{padding:0;margin:0}
+    .actions .delete-btn{display:block;width:100%}
+    .delete-btn:hover{background:#dc2626}
+    /* make red delete buttons slightly translucent (90% opacity) */
+    .delete-btn{opacity:0.9}
+
+    /* Confirmation modal */
+    .confirm-overlay{position:fixed;inset:0;background:rgba(2,6,23,0.45);display:flex;align-items:center;justify-content:center;z-index:9998;opacity:0;transition:opacity .18s ease}
+    .confirm-overlay.show{opacity:1}
+    .confirm-modal{background:var(--card);padding:18px;border-radius:10px;box-shadow:0 10px 30px rgba(2,6,23,.2);max-width:420px;width:94%;color:#0f172a;transform:translateY(-8px);opacity:0;transition:opacity .18s ease,transform .18s ease}
+    .confirm-modal.show{transform:none;opacity:1}
+    .confirm-modal h4{margin:0 0 8px;font-size:16px}
+    .confirm-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:12px}
+    .confirm-btn{padding:8px 12px;border-radius:8px;border:0;cursor:pointer;font-weight:600}
+    .confirm-btn.cancel{background:#eef2f7;color:#0f172a}
+    .confirm-btn.confirm{background:var(--danger);color:#fff;opacity:0.8}
+    /* gap between category select and apply button in Transactions */
+    #filter-cat{margin-right:8px}
+    /* add top gap between the category dropdown and the Apply button */
+    #apply-filter{margin-top:8px}
+    /* ensure delete button is part of the actions div (not floating) specifically in Transactions */
+    @media (max-width:700px) {
+      #tab-transactions table td.actions{display:block;padding:0;margin:0}
+      #tab-transactions table td.actions .delete-btn{display:block;width:100%;margin:0}
+    }
+    /* stack add-category input and button, same width with gap */
+    .add-cat-row{display:flex;flex-direction:column;gap:8px;margin-top:8px}
+    .add-cat-input{width:100%;padding:8px;border-radius:6px;border:1px solid #e6edf3}
+    .add-cat-btn{width:100%;padding:10px;border-radius:8px}
+    /* divider before save button in settings */
+    .settings-divider{width:100%;height:1px;background:#eef2f7;margin-top:18px;margin-bottom:12px;border-radius:1px}
+    /* Toast notifications */
+    .toast-container{position:fixed;top:12px;right:12px;z-index:9999;display:flex;flex-direction:column;gap:8px}
+    .toast{min-width:180px;max-width:360px;padding:10px 12px;border-radius:10px;color:#fff;background:rgba(15,23,42,.9);box-shadow:0 6px 20px rgba(2,6,23,.12);display:flex;align-items:center;gap:10px;opacity:0;transform:translateY(-6px);transition:opacity .18s ease,transform .18s ease}
+    .toast.show{opacity:0.9;transform:none}
+    .toast.success{background:linear-gradient(90deg,#059669,#10b981)}
+    .toast.error{background:linear-gradient(90deg,#ef4444,#dc2626)}
+    .toast .msg{flex:1;font-size:14px}
+    .toast .close{background:transparent;border:0;color:rgba(255,255,255,.9);font-weight:700;cursor:pointer}
+    /* Small-screen toast/modal sizing */
+    @media (max-width:480px){
+      .toast-container{top:8px;left:8px;right:8px}
+      /* make toasts full-width inside container on small screens and increase height slightly */
+      .toast{width:100%;min-width:0;max-width:none;padding:10px 12px;border-radius:8px;font-size:13px;gap:8px;box-sizing:border-box;line-height:1.1;align-items:center;position:relative}
+      /* keep message on single line and truncate with ellipsis; no reserved space when close is hidden */
+      .toast .msg{flex:1;min-width:0;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-right:12px}
+      /* hide close button on small screens (mobile) */
+      .toast .close{display:none !important}
+      .confirm-modal{max-width:320px;padding:12px;border-radius:8px}
+      .confirm-modal h4{font-size:15px}
+      .confirm-actions{gap:6px}
+      .confirm-btn{padding:6px 10px;font-size:14px}
+    }
+    /* Mobile-specific overrides: ensure Top Categories column is fully visible and labels can wrap */
+    @media (max-width:700px){
+      #home-top-categories, #home-top-categories .top-cats, .daily-row .cats-col {
+        max-height: none !important;
+        overflow: visible !important;
+        flex: initial !important;
+      }
+      /* allow category labels to wrap so they don't get truncated */
+      .top-cat .label{white-space:normal !important;overflow:visible !important}
+      .top-cat .pct{width:auto}
+    }
+    @media (max-width:480px){
+      #home-top-categories, #home-top-categories .top-cats, .daily-row .cats-col {
+        max-height: none !important;
+        overflow: visible !important;
+        flex: initial !important;
+      }
+      .top-cat .label{white-space:normal !important;overflow:visible !important}
+      .top-cat .pct{width:auto}
+    }
+    /* Desktop: force main card to fill remaining viewport (accounting for container padding and header) */
+    @media (min-width:900px) {
+      .container{height:100vh}
+      /* container has 16px top padding + header 64px -> subtract 80px */
+      .container > .card:first-of-type{height:calc(100vh - 80px) !important;overflow:auto}
+    }
+  </style>
+</head>
+<body>
+    <div class="container">
+      <div class="app-header">
+        <h1>Assistente de Gastos</h1>
+      </div>
+      <!-- Hamburger drawer menu (top-left) -->
+      <button id="hamburger" class="hamburger" aria-label="Menu"><span class="hamburger-icon"><i></i><i></i><i></i></span></button>
+      <div id="drawer" class="drawer" role="navigation" aria-hidden="true">
+          <button class="tab-btn" data-tab="tab-home">
+            <span class="menu-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M3 10.5L12 3l9 7.5V21a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1V10.5z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+            <span class="menu-label">Dashboard</span>
+          </button>
+          
+          <button class="tab-btn" data-tab="tab-transactions">
+            <span class="menu-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+            <span class="menu-label">Transações</span>
+          </button>
+          <button class="tab-btn" data-tab="tab-report">
+            <span class="menu-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M3 3v18h18" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M7 13v6M12 9v10M17 5v14" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+            <span class="menu-label">Relatório</span>
+          </button>
+          <button class="tab-btn" data-tab="tab-settings">
+            <span class="menu-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06A2 2 0 0 1 2.27 17.9l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82L4.3 4.9A2 2 0 0 1 7.13 2.07l.06.06A1.65 1.65 0 0 0 9 2.46 1.65 1.65 0 0 0 10.5 1H13a2 2 0 0 1 4 0h.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06A2 2 0 0 1 21.73 6.1l-.06.06a1.65 1.65 0 0 0-.33 1.82 1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" stroke="currentColor" stroke-width="0.9" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+            <span class="menu-label">Configurações</span>
+          </button>
+        <hr style="margin:12px 0;border:none;border-top:1px solid #eef2f7">
+      </div>
+      <div id="drawer-overlay" class="drawer-overlay" tabindex="-1"></div>
+
+      <!-- Tab: Home / Dashboard -->
+      <section id="tab-home" class="tab-content" style="display:none">
+          <div class="card">
+          <div style="margin-top:12px">
+            <!-- seletor de mês para filtrar dados do dashboard -->
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px">
+              <div style="display:flex;align-items:center">
+                <label class="home-month-caption">Mês e ano</label>
+              </div>
+              <div style="display:flex;align-items:center;gap:6px">
+                <button type="button" id="home-month-prev" aria-label="Mês anterior" style="height:34px;width:36px;border-radius:6px;border:1px solid #e6e9ee;background:#fff">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false"><path d="M15 18l-6-6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </button>
+                <div id="home-month-label" role="status" aria-live="polite" style="padding:6px 10px;border-radius:6px;border:1px solid #eef2f7;background:#fff;color:#1f2937;font-weight:600">—</div>
+                <button type="button" id="home-month-next" aria-label="Próximo mês" style="height:34px;width:36px;border-radius:6px;border:1px solid #e6e9ee;background:#fff">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false"><path d="M9 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </button>
+              </div>
+            </div>
+            <div class="daily-row">
+              <div class="chart-col card small" style="padding:10px;flex:2;min-width:0">
+                <div style="width:100%;margin-bottom:10px" class="card small" id="home-totals">Carregando...</div>
+                <h4 style="margin:8px 0 6px;font-size:16px">Despesas Diárias</h4>
+                <div class="chart-canvas-wrapper" style="flex:1;min-height:0;">
+                  <canvas id="home-daily-expenses" style="width:100%;height:100%"></canvas>
+                </div>
+                <div class="card small" style="margin-top:12px;padding:10px">
+                  <h5 style="margin:0 0 8px;font-size:14px">Transações Recentes</h5>
+                  <div id="home-recent" class="small">Carregando...</div>
+                </div>
+              </div>
+              <div style="flex:1;display:flex;flex-direction:column;gap:8px;min-width:0">
+                <div class="card small" style="padding:10px"><canvas id="home-bar" style="width:100%;height:160px"></canvas></div>
+                <div class="card small" style="padding:10px"><canvas id="home-income" style="width:100%;height:160px"></canvas></div>
+                <div id="home-top-categories" class="cats-col card small" style="padding:10px">
+                  <h5 style="margin:0 0 8px;font-size:14px">Top categorias</h5>
+                  <div class="top-cats">Carregando...</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Tab: Add Expense (moved into Transactions) -->
+
+      <!-- Tab: Transactions -->
+      <section id="tab-transactions" class="tab-content" style="display:none">
+        <!-- Adicionar: formulário movido para esta aba -->
+        <div class="card" style="padding:10px;margin-bottom:12px">
+          <form id="expense-form" onsubmit="return false;" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+            <input type="date" id="date" required />
+            <input type="text" id="desc" placeholder="Descrição" />
+            <select id="category">
+              <option value="">categoria</option>
+              <option value="Alimentação">Alimentação</option>
+              <option value="Transporte">Transporte</option>
+              <option value="Lazer">Lazer</option>
+              <option value="Moradia">Moradia</option>
+              <option value="Outros">Outros</option>
+            </select>
+            <select id="kind">
+              <option value="Despesa">Despesa</option>
+              <option value="Receita">Receita</option>
+            </select>
+            <input type="number" id="amount" placeholder="Valor" step="0.01" required />
+            <div class="flex">
+              <button id="add-btn" type="button">Adicionar</button>
+              <button id="clear-btn" type="button" class="ghost">Limpar todos</button>
+            </div>
+          </form>
+          <div style="margin-top:8px" class="small">Dados salvos localmente no browser (localStorage).</div>
+        </div>
+        <div style="margin-bottom:12px" class="small">
+          Filtrar: <input type="date" id="from"> até <input type="date" id="to"> Categoria:
+          <select id="filter-cat"><option value="">Todas</option>
+            <option>Alimentação</option><option>Transporte</option><option>Lazer</option>
+            <option>Moradia</option><option>Outros</option></select>
+          <button id="apply-filter" class="ghost">Aplicar</button>
+        </div>
+
+        <table id="list">
+          <thead><tr><th>Data</th><th>Descrição</th><th>Categoria</th><th>Tipo</th><th class="right">Valor</th><th></th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </section>
+
+      <!-- Tab: Report -->
+      <section id="tab-report" class="tab-content" style="display:none">
+        <div class="report card" id="report-area" style="display:block;margin-top:0;padding:12px">
+          <h3>Relatório</h3>
+          <div id="report-content" class="small"></div>
+
+          <!-- Visible pie chart for totals by category -->
+          <div style="margin-top:12px">
+            <canvas id="report-chart" style="width:100%;max-width:600px;height:320px"></canvas>
+          </div>
+          <!-- Bar chart: Limite vs Gasto -->
+          <div style="margin-top:18px">
+            <canvas id="bar-chart" style="width:100%;max-width:800px;height:360px"></canvas>
+          </div>
+
+          <!-- Export buttons moved below the charts (inline with gap) -->
+          <div class="export-controls" style="margin-top:12px; display:flex; gap:12px;">
+            <button id="export-csv" class="ghost">Exportar CSV</button>
+            <button id="export-xlsx" class="ghost">Exportar XLSX</button>
+            <button id="export-all" class="ghost">Exportar Tudo</button>
+            <input id="import-file" type="file" accept=".csv,.json" style="display:none" />
+            <button id="import-btn" class="ghost">Importar</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Tab: Settings (limits) -->
+      <section id="tab-settings" class="tab-content" style="display:none">
+        <div class="card">
+            <h3>Configurações</h3>
+
+            <!-- Group: Limites Mensais -->
+            <div id="limits-group" style="margin-top:8px" class="small">
+              <h4 style="margin:0 0 8px;font-size:15px">Limites Mensais</h4>
+              <div id="global-limit-row">Limite Global (<span id="global-currency-label">BRL</span>): <input type="number" id="global-limit" step="0.01" placeholder="0.00" /></div>
+            </div>
+
+            <!-- Group: Moeda -->
+            <div id="currency-group" style="margin-top:14px" class="small">
+              <h4 style="margin:0 0 8px;font-size:15px">Moeda</h4>
+              <!-- currency select populated by JS -->
+            </div>
+
+            <!-- Group: Categorias -->
+            <div id="categories-group" style="margin-top:14px" class="small">
+              <h4 style="margin:0 0 8px;font-size:15px">Categorias</h4>
+              <div id="category-limits"><!-- category limits rendered here --></div>
+            </div>
+          </div>
+      </section>
+  </div>
+
+  <script>
+    const storageKey = 'expenses_v1'
+
+    function $(id){return document.getElementById(id)}
+
+    function readExpenses(){
+      try{ return JSON.parse(localStorage.getItem(storageKey) || '[]') }
+      catch(e){return []}
+    }
+    function writeExpenses(list){ localStorage.setItem(storageKey, JSON.stringify(list)) }
+
+    function formatCurrency(v){ 
+      const limits = (typeof getLimits==='function')? getLimits() : {currency:'BRL'}
+      const cur = (limits && limits.currency) ? limits.currency : 'BRL'
+      const localeMap = { BRL: 'pt-BR', USD: 'en-US', EUR: 'de-DE', GBP: 'en-GB' }
+      const locale = localeMap[cur] || 'pt-BR'
+      return Number(v).toLocaleString(locale,{style:'currency',currency:cur})
+    }
+
+    // Toast notification helper
+    function showToast(message, type='error', timeout=3500){
+      try{
+        let container = document.getElementById('toast-container')
+        if(!container){
+          container = document.createElement('div')
+          container.id = 'toast-container'
+          container.className = 'toast-container'
+          document.body.appendChild(container)
+        }
+        const t = document.createElement('div')
+        t.className = 'toast ' + (type === 'success' ? 'success' : type === 'info' ? 'info' : 'error')
+        t.innerHTML = `<div class="msg">${String(message)}</div><button class="close" aria-label="Fechar">×</button>`
+        const btn = t.querySelector('.close')
+        btn.addEventListener('click', ()=>{ t.classList.remove('show'); setTimeout(()=> t.remove(),180) })
+        container.appendChild(t)
+        // show
+        requestAnimationFrame(()=> t.classList.add('show'))
+        if(timeout>0) setTimeout(()=>{ t.classList.remove('show'); setTimeout(()=> t.remove(),180) }, timeout)
+      }catch(e){ console.error('Toast error', e) }
+    }
+
+    function render(list=null){
+      const data = (list||readExpenses()).slice().sort((a,b)=>b.date.localeCompare(a.date))
+      const tbody = document.querySelector('#list tbody')
+      tbody.innerHTML = ''
+      data.forEach((e, i)=>{
+        const tr = document.createElement('tr')
+        const kind = e.kind || 'Despesa'
+        const isIncome = kind === 'Receita'
+        const arrowClass = isIncome ? 'income' : 'expense'
+        const arrowSymbol = isIncome ? '▲' : '▼'
+        tr.innerHTML = `<td data-label="Data">${e.date}</td>` +
+                 `<td data-label="Descrição">${escapeHtml(e.desc)}</td>` +
+                 `<td data-label="Categoria">${e.category}</td>` +
+                 `<td data-label="Tipo"><span class="kind-indicator"><span class="arrow ${arrowClass}" aria-hidden="true">${arrowSymbol}</span><span>${kind}</span></span></td>` +
+                 `<td data-label="Valor" class="right">${formatCurrency(e.amount)}</td>` +
+                 `<td data-label="" class="actions"><button data-i="${i}" class="delete-btn" aria-label="Apagar">Apagar</button></td>`
+        tbody.appendChild(tr)
+      })
+      // attach delete handlers (use currentTarget so clicks on inner SVG still work)
+      tbody.querySelectorAll('.delete-btn').forEach(b=>b.addEventListener('click',ev=>{
+          const idx = Number(ev.currentTarget.dataset.i)
+          // show styled confirmation instead of native confirm
+          showConfirm('Deseja realmente apagar esta transação?', ()=> deleteExpense(idx))
+      }))
+    }
+
+    // render transactions into the transactions tab table
+    function renderTransactions(list=null){
+      // reuse render which already targets #list
+      render(list)
+    }
+
+    function escapeHtml(s){return s.replace(/[&<>\"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
+
+    function addExpense(){
+      const date = $('date').value
+      const desc = $('desc').value.trim()
+      const category = $('category').value
+      // accept both comma and dot decimal separators and validate numeric
+      const rawAmount = ($('amount').value || '').toString().trim().replace(',', '.')
+      const amount = parseFloat(rawAmount)
+      const kind = $('kind') ? $('kind').value : 'Despesa'
+      if(!date || Number.isNaN(amount)) return showToast('Preencha data e um valor numérico válido','error')
+      // For expenses, require a category to be selected (default is empty 'Categoria')
+      if(kind === 'Despesa' && !category) return showToast('Selecione uma categoria para despesas','error')
+      const list = readExpenses()
+      list.push({date,desc,category,amount,kind})
+      writeExpenses(list)
+      render()
+      try{ refreshAll() }catch(e){}
+      try{ showToast('Gasto adicionado: ' + (desc||'sem descrição') + ' — ' + formatCurrency(amount), 'success', 3000) }catch(e){}
+      $('expense-form').reset()
+      $('date').value = new Date().toISOString().slice(0,10)
+    }
+
+    function deleteExpense(index){
+      const list = readExpenses()
+      // index relates to sorted list; map by sorting to stable removal
+      const sorted = list.slice().sort((a,b)=>b.date.localeCompare(a.date))
+      const item = sorted[index]
+      const keep = list.filter(l=>!(l.date===item.date && l.desc===item.desc && l.amount===item.amount && l.category===item.category))
+      writeExpenses(keep)
+      render()
+      try{ refreshAll() }catch(e){}
+    }
+
+    function clearAll(){ if(!confirm('Remover todos os gastos?')) return; localStorage.removeItem(storageKey); render() }
+
+    // showConfirm: styled confirmation modal
+    function showConfirm(message, onConfirm){
+      try{
+        const overlay = document.createElement('div')
+        overlay.className = 'confirm-overlay'
+        const modal = document.createElement('div')
+        modal.className = 'confirm-modal'
+        modal.innerHTML = `<h4>Confirmação</h4><div class="confirm-message">${escapeHtml(String(message))}</div>`
+        const actions = document.createElement('div')
+        actions.className = 'confirm-actions'
+        const btnCancel = document.createElement('button')
+        btnCancel.className = 'confirm-btn cancel'
+        btnCancel.textContent = 'Cancelar'
+        const btnOk = document.createElement('button')
+        btnOk.className = 'confirm-btn confirm'
+        btnOk.textContent = 'Apagar'
+        actions.appendChild(btnCancel)
+        actions.appendChild(btnOk)
+        modal.appendChild(actions)
+        overlay.appendChild(modal)
+        document.body.appendChild(overlay)
+        // animate in
+        requestAnimationFrame(()=>{ overlay.classList.add('show'); modal.classList.add('show') })
+        function removeIt(){ modal.classList.remove('show'); overlay.classList.remove('show'); setTimeout(()=> overlay.remove(), 220) }
+        btnCancel.addEventListener('click', ()=> removeIt())
+        overlay.addEventListener('click', (e)=>{ if(e.target === overlay) removeIt() })
+        btnOk.addEventListener('click', ()=>{ try{ onConfirm && onConfirm() }catch(e){} removeIt() })
+      }catch(e){ if(confirm(message)){ try{ onConfirm && onConfirm() }catch(e){} } }
+    }
+
+    function applyFilterAndRender(){
+      const from = $('from').value
+      const to = $('to').value
+      const cat = $('filter-cat').value
+      const all = readExpenses()
+      const filtered = all.filter(e=>{
+        if(cat && e.category!==cat) return false
+        if(from && e.date < from) return false
+        if(to && e.date > to) return false
+        return true
+      })
+      // update transactions list in-place (stay on the current tab)
+      renderTransactions(filtered)
+      // if the user already has the Relatório tab open, refresh its chart with the filtered data
+      try{
+        const reportVisible = document.getElementById('tab-report').style.display === 'block'
+        if(reportVisible) showReport(filtered)
+      }catch(e){}
+    }
+
+    // Limits storage
+    const LIMITS_KEY = 'expense_limits_v1'
+    const CATEGORIES_KEY = 'expense_categories_v1'
+    function getLimits(){
+      try{ return JSON.parse(localStorage.getItem(LIMITS_KEY) || '{"global":0,"categories":{}}') }
+      catch(e){ return {global:0,categories:{}} }
+    }
+    function saveLimits(l){ localStorage.setItem(LIMITS_KEY, JSON.stringify(l)) }
+
+    function getCategories(){
+      try{ return JSON.parse(localStorage.getItem(CATEGORIES_KEY) || 'null') || null }
+      catch(e){ return null }
+    }
+    function saveCategories(list){ localStorage.setItem(CATEGORIES_KEY, JSON.stringify(list)) }
+    function ensureDefaultCategories(){
+      let cats = getCategories()
+      if(!cats){ cats = ['Alimentação','Transporte','Lazer','Moradia','Outros']; saveCategories(cats) }
+      return cats
+    }
+
+    function updateCategorySelects(){
+      const cats = ensureDefaultCategories() || []
+      // update add form category select
+      const sel = $('category')
+      if(sel){
+        sel.innerHTML = ''
+        const placeholder = document.createElement('option')
+        placeholder.value = ''
+        placeholder.textContent = 'categoria'
+        sel.appendChild(placeholder)
+        cats.forEach(c=>{ const o = document.createElement('option'); o.value = c; o.textContent = c; sel.appendChild(o) })
+      }
+      // update filter select
+      const f = $('filter-cat')
+      if(f){
+        const cur = f.value || ''
+        f.innerHTML = ''
+        const all = document.createElement('option'); all.value=''; all.textContent='Todas'; f.appendChild(all)
+        cats.forEach(c=>{ const o = document.createElement('option'); o.value = c; o.textContent = c; f.appendChild(o) })
+        // restore previous selection if still present
+        try{ if(cur) f.value = cur }catch(e){}
+      }
+    }
+
+    function refreshAll(){
+      try{ render(); renderTransactions(); renderLimits(); updateCategorySelects(); showReport(); try{ renderHome() }catch(e){} }catch(e){}
+    }
+
+    function renderLimits(){
+      const limits = getLimits()
+      $('global-limit').value = limits.global || ''
+      // populate currency selector inside currency-group
+      const currencyGroup = $('currency-group')
+      currencyGroup.querySelectorAll('.currency-row').forEach(n=>n.remove())
+      const curHtml = 'Moeda: <select id="currency-select"><option value="BRL">BRL</option><option value="USD">USD</option><option value="EUR">EUR</option><option value="GBP">GBP</option></select>'
+      const curRow = document.createElement('div')
+      curRow.className = 'currency-row'
+      curRow.innerHTML = curHtml
+      currencyGroup.appendChild(curRow)
+      const cur = (limits.currency) ? limits.currency : 'BRL'
+      $('currency-select').value = cur
+      // show currency code in the global limit label
+      try{ const gl = document.getElementById('global-currency-label'); if(gl) gl.textContent = cur }catch(e){}
+      // currency change handler will be assigned below to enable auto-save
+
+      const container = $('category-limits')
+      container.innerHTML = ''
+      const cats = ensureDefaultCategories()
+      cats.forEach(cat=>{
+        const val = limits.categories[cat] || ''
+        const row = document.createElement('div')
+        row.style.marginBottom = '8px'
+        row.innerHTML = `${cat} (${cur}): <input data-cat="${cat}" class="limit-input" type="number" step="0.01" value="${val}" placeholder="0.00" /> <button data-remove="${cat}" class="remove-cat" aria-label="Remover ${cat}" title="Remover ${cat}">` +
+                      `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M3 6h18v2H3V6zm2 3h2v9a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V9h2v11a4 4 0 0 1-4 4H9a4 4 0 0 1-4-4V9zm5-5h6l1 1H7l1-1z"/></svg>` +
+                      `</button>`
+        container.appendChild(row)
+      })
+      // attach remove handlers (use closure variable to avoid event target child-node issues)
+      container.querySelectorAll('.remove-cat').forEach(btn=> btn.addEventListener('click', ev=>{
+        const cat = btn.dataset.remove
+        if(!confirm('Remover categoria "'+cat+'"? Isso também removerá seu limite.')) return
+        let cats = ensureDefaultCategories()
+        cats = cats.filter(c=> c!==cat)
+        saveCategories(cats)
+        const limits = getLimits()
+        if(limits.categories && limits.categories[cat]) delete limits.categories[cat]
+        saveLimits(limits)
+        renderLimits()
+        updateCategorySelects()
+        try{ renderTransactions(); showReport() }catch(e){}
+      }))
+
+      // add-category input
+      if(!$('new-cat')){
+        const addRow = document.createElement('div')
+        addRow.style.marginTop = '8px'
+        addRow.innerHTML = `Adicionar categoria:<div class="add-cat-row"><input id="new-cat" class="add-cat-input" placeholder="Nome da categoria" /> <button id="add-cat" class="ghost add-cat-btn">Adicionar</button></div>`
+        container.appendChild(addRow)
+        // attach handler
+        addRow.querySelector('#add-cat').addEventListener('click', ()=>{
+          const v = document.getElementById('new-cat').value.trim()
+          if(!v) return showToast('Digite o nome da categoria','error')
+          let cats = ensureDefaultCategories()
+          if(cats.includes(v)) return showToast('Categoria já existe','error')
+          cats.push(v)
+          saveCategories(cats)
+          // ensure a default limit entry exists for the new category
+          const limits = getLimits(); limits.categories = limits.categories || {}; if(!limits.categories[v]) limits.categories[v] = 0; saveLimits(limits)
+          renderLimits()
+          updateCategorySelects()
+          try{ renderTransactions(); showReport() }catch(e){}
+        })
+      }
+      // Auto-save behavior: save when inputs change
+      try{
+        // global limit auto-save
+        const g = document.getElementById('global-limit')
+        if(g) g.onchange = ()=>{
+          const limits = getLimits(); limits.global = parseFloat(g.value) || 0; saveLimits(limits); try{ refreshAll() }catch(e){}
+        }
+        // currency select already exists above; ensure onchange used (replace previous listener)
+        if(document.getElementById('currency-select')){
+          document.getElementById('currency-select').onchange = ()=>{
+            const lim = getLimits(); lim.currency = document.getElementById('currency-select').value; saveLimits(lim); try{ refreshAll() }catch(e){}
+          }
+        }
+        // per-category inputs auto-save on change
+        container.querySelectorAll('.limit-input').forEach(inp=>{
+          inp.onchange = ()=>{
+            const cat = inp.dataset.cat
+            const limits = getLimits(); limits.categories = limits.categories || {};
+            limits.categories[cat] = parseFloat(inp.value) || 0; saveLimits(limits); try{ refreshAll() }catch(e){}
+          }
+        })
+      }catch(e){}
+      // per-category save buttons removed; use the global "Salvar todos" button to persist all limits
+    }
+
+    function computeMonthTotals(list=null, year=null, month=null){
+      const all = list || readExpenses()
+      const d = new Date()
+      const y = year!==null?year:d.getFullYear()
+      const m = month!==null?month:d.getMonth()+1
+      const totalsExpenses = {}
+      const totalsIncomes = {}
+      let totalExpenses = 0
+      let totalIncomes = 0
+      all.forEach(x=>{
+        const [yy,mm] = x.date.split('-').map(Number)
+        if(yy===y && mm===m){
+          const kind = x.kind || 'Despesa'
+          if(kind === 'Receita'){
+            totalsIncomes[x.category] = (totalsIncomes[x.category]||0) + Number(x.amount)
+            totalIncomes += Number(x.amount)
+          } else {
+            totalsExpenses[x.category] = (totalsExpenses[x.category]||0) + Number(x.amount)
+            totalExpenses += Number(x.amount)
+          }
+        }
+      })
+      return { totalsExpenses, totalExpenses, totalsIncomes, totalIncomes }
+    }
+
+    let reportChart = null
+    let barChart = null
+    let homeBar = null
+    let homeIncome = null
+    let homeDailyExpenses = null
+    function renderHome(){
+      const all = readExpenses()
+      // determine selected month via arrow controls (fallback to current month)
+      const lbl = document.getElementById('home-month-label')
+      const prevBtn = document.getElementById('home-month-prev')
+      const nextBtn = document.getElementById('home-month-next')
+      let selYear, selMonth
+      if(lbl && lbl.dataset && lbl.dataset.year && lbl.dataset.month){ selYear = Number(lbl.dataset.year); selMonth = Number(lbl.dataset.month) }
+      else { const d = new Date(); selYear = d.getFullYear(); selMonth = d.getMonth()+1; if(lbl){ lbl.dataset.year = selYear; lbl.dataset.month = selMonth } }
+      // wire buttons once
+      if(prevBtn && !prevBtn._wired){ prevBtn.addEventListener('click', ()=>{ const y = Number(lbl.dataset.year); let m = Number(lbl.dataset.month)-1; if(m<1){ m=12; lbl.dataset.year = y-1 } lbl.dataset.month = m; renderHome() }); prevBtn._wired = true }
+      if(nextBtn && !nextBtn._wired){ nextBtn.addEventListener('click', ()=>{ const y = Number(lbl.dataset.year); let m = Number(lbl.dataset.month)+1; if(m>12){ m=1; lbl.dataset.year = y+1 } lbl.dataset.month = m; renderHome() }); nextBtn._wired = true }
+      // ensure label text displays abbreviated month name in pt-BR (e.g., "Fev 2026")
+      try{
+        if(lbl){
+          const dt = new Date(selYear, selMonth-1, 1)
+          let txt = dt.toLocaleString('pt-BR', { month: 'short', year: 'numeric' })
+          txt = txt.replace(/\./g, '').replace(/\s+de\s+/, ' ').replace(/\s+/g, ' ').trim()
+          txt = txt.charAt(0).toUpperCase() + txt.slice(1)
+          lbl.textContent = txt
+          lbl.dataset.year = selYear; lbl.dataset.month = selMonth
+        }
+      }catch(e){}
+      // also update header title and left caption immediately when month changes
+      try{
+        const header = document.querySelector('.app-header h1')
+        const cap = document.querySelector('.home-month-caption')
+        const monthText = (lbl && lbl.textContent && lbl.textContent.trim() && lbl.textContent.trim() !== '—') ? lbl.textContent.trim() : ''
+        if(cap) cap.textContent = monthText || 'Mês e ano'
+        if(header){ header.textContent = 'Dashboard' }
+      }catch(e){}
+      // show month totals (separate despesas e receitas) for selected month
+      const { totalsExpenses, totalExpenses, totalsIncomes, totalIncomes } = computeMonthTotals(all, selYear, selMonth)
+      const limits = getLimits()
+      const globalLimit = limits.global || 0
+      const summary = document.getElementById('home-totals')
+      if(summary){
+        const net = (totalIncomes || 0) - (totalExpenses || 0)
+        // check per-category and global limits
+        // consider exceeded if amount over limit is >= 1 (one currency unit)
+        const exceededCats = Object.keys(totalsExpenses || {}).filter(c=>{
+          const limit = limits.categories && limits.categories[c] ? Number(limits.categories[c]) : 0
+          return limit>0 && ((totalsExpenses[c]||0) - limit) >= 1
+        })
+        const globalExceeded = globalLimit && Number(globalLimit) > 0 && ((totalExpenses || 0) - Number(globalLimit)) >= 1
+
+        // determine saldo arrow and classes
+        const netPositive = (net || 0) >= 0
+        const netArrow = netPositive ? '▲' : '▼'
+        const netArrowClass = netPositive ? 'income' : 'expense'
+        const netValueClass = netPositive ? 'income-amount' : 'expense-amount'
+
+        // build alert box if needed (show icon and categories only — remove 'Limite global ultrapassado' label)
+        let alertHtml = ''
+        if(globalExceeded || (exceededCats && exceededCats.length)){
+          let msgContent = ''
+          if(exceededCats && exceededCats.length) msgContent = 'Categorias: '+exceededCats.map(c=>escapeHtml(c)).join(', ')
+          alertHtml = `<div class="home-alert"><div class="msg"><span style="font-weight:700;color:#7f1d1d">⚠️</span><div>${msgContent}</div></div><div class="actions"><button type="button" onclick="switchTab('tab-settings')">Ajustar limites</button></div></div>`
+        }
+
+        // build mini-cards layout similar to dashboard and compute % change vs previous month
+        const prevYear = selMonth === 1 ? selYear - 1 : selYear
+        const prevMonth = selMonth === 1 ? 12 : selMonth - 1
+        const prevTotals = computeMonthTotals(all, prevYear, prevMonth)
+        const prevTotalIncomes = prevTotals.totalIncomes || 0
+        const prevTotalExpenses = prevTotals.totalExpenses || 0
+        const prevNet = (prevTotalIncomes || 0) - (prevTotalExpenses || 0)
+        function pctInfo(cur, prevVal){
+          if(prevVal === 0){
+            if(cur === 0) return {text: '0%', cls: '', arrow: ''}
+            // when no base month, show dash without arrow
+            return {text: '—', cls: '', arrow: ''}
+          }
+          const diff = cur - prevVal
+          const pct = Math.round((Math.abs(diff)/Math.abs(prevVal))*1000)/10
+          const cls = diff > 0 ? 'positive' : (diff < 0 ? 'negative' : '')
+          const arrow = diff > 0 ? '▲' : (diff < 0 ? '▼' : '')
+          return {text: pct + '%', cls, arrow}
+        }
+        const incomeInfo = pctInfo(totalIncomes || 0, prevTotalIncomes || 0)
+        const expenseInfo = pctInfo(totalExpenses || 0, prevTotalExpenses || 0)
+        const netInfo = pctInfo(net || 0, prevNet || 0)
+
+        const expenseRenderClass = expenseInfo.cls === 'positive' ? 'negative' : (expenseInfo.cls === 'negative' ? 'positive' : '')
+        summary.innerHTML = alertHtml + `
+          <div class="mini-cards">
+            <div class="mini-card">
+              <div class="label"><span class="icon arrow income" aria-hidden="true">▲</span><span>Receitas</span></div>
+              <div>
+                <div class="value"><span class="income-amount">${formatCurrency(totalIncomes || 0)}</span><span class="pct-change ${incomeInfo.cls}">${incomeInfo.arrow?incomeInfo.arrow+' ':' '}${incomeInfo.text}</span></div>
+              </div>
+            </div>
+            <div class="mini-card expense">
+              <div class="label"><span class="icon arrow expense" aria-hidden="true">▼</span><span>Despesas</span></div>
+              <div>
+                <div class="value"><span class="expense-amount">${formatCurrency(-(totalExpenses || 0))}</span><span class="pct-change ${expenseRenderClass}">${expenseInfo.arrow?expenseInfo.arrow+' ':' '}${expenseInfo.text}</span></div>
+              </div>
+            </div>
+            <div class="mini-card">
+              <div class="label"><span class="mini-hamburger" aria-hidden="true"><i></i><i></i><i></i></span><span>Saldo</span></div>
+              <div>
+                <div class="value"><span class="${netValueClass}">${formatCurrency(net)}</span><span class="pct-change ${netInfo.cls}">${netInfo.arrow?netInfo.arrow+' ':''}${netInfo.text}</span></div>
+              </div>
+            </div>
+          </div>`
+        // animate alert if present
+        try{
+          const a = summary.querySelector('.home-alert')
+          if(a){ requestAnimationFrame(()=> a.classList.add('show')) }
+        }catch(e){}
+      }
+      // pie chart removed from dashboard
+      // bar: limits vs gasto (despesas)
+      try{
+        const labels = Array.from(new Set([...Object.keys(totalsExpenses), ...Object.keys(limits.categories || {})]))
+        const actual = labels.map(l=> Number(totalsExpenses[l]||0))
+        const limitVals = labels.map(l=> Number(limits.categories && limits.categories[l] ? limits.categories[l] : 0))
+        const bctx = document.getElementById('home-bar').getContext('2d')
+        if(homeBar) homeBar.destroy()
+        homeBar = new Chart(bctx, { type:'bar', data:{labels, datasets:[{label:'Limite', data:limitVals, backgroundColor:'#2563EB', maxBarThickness:18, barPercentage:0.6, categoryPercentage:0.6},{label:'Gasto', data:actual, backgroundColor:labels.map(()=> '#ef4444'), maxBarThickness:18, barPercentage:0.6, categoryPercentage:0.6} ]}, options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom'}, title:{display:true, text:'Limite vs Gasto (Despesas)'}},scales:{y:{beginAtZero:true}}}})
+        try{ if(homeBar && typeof homeBar.resize === 'function'){ homeBar.resize(); homeBar.update() } }catch(e){}
+      }catch(e){}
+      // recent transactions (show last 2)
+      try{
+        const recentEl = document.getElementById('home-recent')
+        if(recentEl){
+            const latest = all.slice().sort((a,b)=>b.date.localeCompare(a.date))
+            const filteredLatest = latest.filter(r=>{ const [yy,mm] = r.date.split('-').map(Number); return yy===selYear && mm===selMonth })
+            const items = filteredLatest.slice(0,5)
+          if(items.length===0) recentEl.innerHTML = '<div class="small">Nenhuma transação recente</div>'
+          else{
+            recentEl.innerHTML = items.map(r=>{
+              const kind = (r.kind||'Despesa')
+              const val = kind === 'Receita' ? Number(r.amount) : -Number(r.amount)
+              return `<div style="display:flex;gap:8px;align-items:center;border-bottom:1px solid #eef2f7;padding:8px 0"><div style="min-width:80px;color:#64748b">${r.date}</div><div style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(r.desc||'')}</div><div style="width:110px;text-align:right;font-weight:700;color:${kind==='Receita'? '#16a34a':'#ef4444'}">${formatCurrency(val)}</div></div>`
+            }).join('')
+          }
+        }
+      }catch(e){}
+
+      // receita vs despesa por dia (gráfico de linhas do mês atual)
+      try{
+        const ctx = document.getElementById('home-income').getContext('2d')
+        if(homeIncome) homeIncome.destroy()
+        const year = selYear
+        const month = selMonth
+        const daysInMonth = new Date(year, month, 0).getDate()
+        const labelsDays = Array.from({length: daysInMonth}, (_,i)=> String(i+1).padStart(2,'0'))
+        const incomesByDay = new Array(daysInMonth).fill(0)
+        const expensesByDay = new Array(daysInMonth).fill(0)
+        all.forEach(x=>{
+          const [yy,mm,dd] = x.date.split('-').map(Number)
+          if(yy===year && mm===month){
+            const idx = dd - 1
+            if((x.kind||'Despesa') === 'Receita') incomesByDay[idx] += Number(x.amount)
+            else expensesByDay[idx] += Number(x.amount)
+          }
+        })
+        homeIncome = new Chart(ctx, {
+          type: 'line',
+          data: {
+            labels: labelsDays,
+            datasets: [
+              { label: 'Receitas', data: incomesByDay, borderColor: '#10B981', backgroundColor: 'rgba(16,185,129,0.08)', tension: 0.25, fill: true },
+              { label: 'Despesas', data: expensesByDay, borderColor: '#ef4444', backgroundColor: 'rgba(239,68,68,0.08)', tension: 0.25, fill: true }
+            ]
+          },
+          options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' }, title: { display: true, text: 'Receita vs Despesa (diário)' } }, scales: { y: { beginAtZero: true } } }
+        })
+        try{ if(homeIncome && typeof homeIncome.resize === 'function'){ homeIncome.resize(); homeIncome.update() } }catch(e){}
+      }catch(e){}
+
+      // gráfico de despesas diárias (aparece no Dashboard)
+      try{
+        const el = document.getElementById('home-daily-expenses')
+        if(el){
+          const ctx2 = el.getContext('2d')
+          if(homeDailyExpenses) homeDailyExpenses.destroy()
+          const year = selYear
+          const month = selMonth
+          const daysInMonth = new Date(year, month, 0).getDate()
+          const labels = Array.from({length: daysInMonth}, (_,i)=> String(i+1).padStart(2,'0'))
+          const expensesByDay = new Array(daysInMonth).fill(0)
+          all.forEach(x=>{
+            const [yy,mm,dd] = x.date.split('-').map(Number)
+            if(yy===year && mm===month){ if((x.kind||'Despesa') !== 'Receita') expensesByDay[dd-1] += Number(x.amount) }
+          })
+          // adapt bar thickness for smaller screens
+          const winW = (typeof window !== 'undefined') ? window.innerWidth : 1024
+          const maxBar = winW <= 480 ? 8 : (winW <= 700 ? 10 : 12)
+          const barPct = winW <= 480 ? 0.6 : 0.7
+          const catPct = winW <= 480 ? 0.5 : 0.6
+          homeDailyExpenses = new Chart(ctx2, {
+            type: 'bar',
+            data: { labels, datasets: [{ label: 'Despesas', data: expensesByDay, backgroundColor: 'rgba(239,68,68,0.8)', borderRadius:0, borderSkipped: false, maxBarThickness: maxBar, barPercentage: barPct, categoryPercentage: catPct }] },
+            options: {
+              responsive: true, maintainAspectRatio: false,
+              plugins: {
+                legend: { display: false },
+                title: { display: true, text: 'Despesas diárias (mês atual)' },
+                tooltip: {
+                  callbacks: {
+                    label: function(ctx){ try{ return formatCurrency(ctx.raw); }catch(e){ return ctx.formattedValue } }
+                  }
+                }
+              },
+              scales: { x: { grid: { display: false }, ticks: { maxRotation:0, minRotation:0 } }, y: { beginAtZero: true } }
+            }
+          })
+          try{ if(homeDailyExpenses && typeof homeDailyExpenses.resize === 'function'){ homeDailyExpenses.resize(); homeDailyExpenses.update() } }catch(e){}
+        }
+      }catch(e){}
+
+      // preencher top categorias ao lado do gráfico
+      try{
+        const container = document.querySelector('#home-top-categories .top-cats')
+        if(container){
+          const totals = totalsExpenses || {}
+          const total = Object.values(totals).reduce((s,v)=>s+Number(v||0),0) || 0
+          const items = Object.keys(totals).map(k=>({k, v: Number(totals[k]||0)})).filter(i=>i.v>0).sort((a,b)=>b.v-a.v).slice(0,6)
+          const colors = ["#2563EB","#06B6D4","#F97316","#EF4444","#10B981","#F59E0B"]
+          if(items.length===0){ container.innerHTML = '<div class="small">Nenhuma despesa no mês</div>' }
+          else{
+            container.innerHTML = items.map((it, idx)=>{
+              const pct = total? Math.round((it.v/total)*1000)/10 : 0
+              const color = colors[idx % colors.length]
+              const barWidth = total ? Math.max(4, Math.round((it.v/total)*100)) : 0
+              return `<div class="top-cat"><span class="dot" style="background:${color}"></span><span class="label">${escapeHtml(it.k)}</span><div class="bar"><i style="width:${barWidth}% ; background:${color}"></i></div><div class="pct">${pct}%</div></div>`
+            }).join('')
+          }
+        }
+      }catch(e){}
+    }
+    function showReport(list=null){
+      // compute totals for current month (use despesas)
+      const {totalsExpenses, totalExpenses} = computeMonthTotals(list)
+      const byCat = totalsExpenses
+      const content = $('report-content')
+      // totals and per-category with limit check
+      const limits = getLimits()
+
+      // build unified category list (include categories with limits even if no spending yet)
+      const catsSet = new Set(Object.keys(byCat))
+      Object.keys(limits.categories || {}).forEach(c=> catsSet.add(c))
+      const labels = Array.from(catsSet)
+
+      // prepare arrays for chart and list
+      const actualData = labels.map(l => Number(byCat[l] || 0))
+      const limitData = labels.map(l => Number(limits.categories && limits.categories[l] ? limits.categories[l] : 0))
+
+      const rows = labels.length ? labels.map(c=>{
+        const used = byCat[c] || 0
+        const limit = limits.categories[c] || 0
+        const ok = limit===0 || (limit - used) >= 0
+        return `<li>${c}: ${formatCurrency(used)} — Limite: ${limit?formatCurrency(limit):'—'} <span style="color:${ok? 'green':'red'}">${limit? (ok? 'OK':'ULTRAPASSOU') : ''}</span></li>`
+      }).join('') : '<li>Nenhuma transação no mês</li>'
+
+      const globalLimit = limits.global || 0
+      const globalOk = globalLimit===0 || (globalLimit - totalExpenses) >= 0
+
+      content.innerHTML = `<div><strong>Total (mês):</strong> ${formatCurrency(totalExpenses)}</div>` +
+        `<div style="margin-top:8px"><strong>Global:</strong> ${globalLimit?formatCurrency(globalLimit):'—'} <span style="color:${globalOk? 'green':'red'}">${globalLimit? (globalOk? 'OK':'ULTRAPASSOU') : ''}</span></div>` +
+        '<div style="margin-top:8px"><strong>Por categoria:</strong><ul>' + rows + '</ul></div>'
+
+      // render doughnut with two rings: inner = limits, outer = actual spending
+      const ctx = document.getElementById('report-chart').getContext('2d')
+      if(reportChart) reportChart.destroy()
+      const colors = ["#2563EB","#06B6D4","#F97316","#EF4444","#10B981","#F59E0B"]
+      const bgActual = labels.map((_,i) => colors[i % colors.length])
+      const bgLimit = labels.map((_,i) => lightenColor(colors[i % colors.length], 0.55))
+
+      // donut: show only actual spending by category (no 'Limite' dataset)
+      reportChart = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+          labels,
+          datasets: [
+            { label: 'Gasto', data: actualData, backgroundColor: bgActual, hoverOffset: 6 }
+          ]
+        },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' }, title: { display: true, text: 'Gasto por categoria' } } }
+      })
+
+      // force resize/update after making the tab visible so Chart.js lays out correctly
+      try{ reportChart.resize(); reportChart.update() }catch(e){}
+
+      // --- Bar chart: Limite vs Gasto (visualiza excesso) ---
+      const bctx = document.getElementById('bar-chart').getContext('2d')
+      if(barChart) barChart.destroy()
+
+      const limitValues = limitData.slice()
+      const actualValues = actualData.slice()
+      // show full 'Gasto' value; color all gasto bars red
+      const actualColors = labels.map(() => '#ef4444')
+
+      barChart = new Chart(bctx, {
+        type: 'bar',
+        data: {
+          labels,
+          datasets: [
+            { label: 'Limite', data: limitValues, backgroundColor: '#2563EB', maxBarThickness:18, barPercentage:0.6, categoryPercentage:0.6 },
+            { label: 'Gasto', data: actualValues, backgroundColor: actualColors, maxBarThickness:18, barPercentage:0.6, categoryPercentage:0.6 }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { position: 'bottom' }, tooltip: { mode: 'index', intersect: false }, title: { display: true, text: 'Limite vs Gasto por categoria' } },
+          scales: { x: { stacked: false }, y: { beginAtZero: true } }
+        }
+      })
+    }
+
+    // utility: lighten hex color (approx)
+    function lightenColor(hex, amount){
+      // hex like #rrggbb
+      const c = hex.replace('#','')
+      const num = parseInt(c,16)
+      let r = (num >> 16) & 0xff
+      let g = (num >> 8) & 0xff
+      let b = num & 0xff
+      r = Math.round(r + (255 - r) * amount)
+      g = Math.round(g + (255 - g) * amount)
+      b = Math.round(b + (255 - b) * amount)
+      return '#' + ((1<<24) + (r<<16) + (g<<8) + b).toString(16).slice(1)
+    }
+
+    function exportCSV(list=null){
+      const data = (list||readExpenses())
+      if(!data.length) return showToast('Nenhum dado para exportar','error')
+      const rows = [['date','desc','category','amount'], ...data.map(r=>[r.date, r.desc, r.category, r.amount])]
+      const csv = rows.map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n')
+      const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'})
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url; a.download = 'gastos.csv'; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url)
+    }
+
+    async function exportXLSX(list=null){
+      const data = (list||readExpenses())
+      if(!data.length) return showToast('Nenhum dado para exportar','error')
+
+      // totals per category
+      const byCat = {}
+      data.forEach(x=> byCat[x.category] = (byCat[x.category]||0) + Number(x.amount))
+
+      // create Excel workbook using ExcelJS
+      if(typeof ExcelJS === 'undefined') return showToast('ExcelJS não carregado','error')
+      const workbook = new ExcelJS.Workbook()
+      workbook.creator = 'Assistente de Gastos'
+
+      const ws1 = workbook.addWorksheet('Transações')
+      ws1.addRow(['Data','Descrição','Categoria','Valor'])
+      data.forEach(r=> ws1.addRow([r.date, r.desc, r.category, Number(r.amount)]))
+      ws1.getColumn(4).numFmt = '"R$"#,##0.00;[Red]-"R$"#,##0.00'
+
+      const ws2 = workbook.addWorksheet('Resumo')
+      ws2.addRow(['Categoria','Total'])
+      Object.keys(byCat).forEach(cat=> ws2.addRow([cat, byCat[cat]]))
+      ws2.getColumn(2).numFmt = '"R$"#,##0.00;[Red]-"R$"#,##0.00'
+
+      // draw pie chart on hidden canvas then embed as image
+      if(typeof Chart === 'undefined') return showToast('Chart.js não carregado','error')
+      const canvas = document.getElementById('chart-canvas')
+      canvas.style.display = 'block'
+      const ctx = canvas.getContext('2d')
+      const labels = Object.keys(byCat)
+      const values = labels.map(l=> byCat[l])
+      const colors = ["#4f46e5","#06b6d4","#f97316","#ef4444","#10b981","#f59e0b"]
+      const chart = new Chart(ctx, {
+        type: 'pie',
+        data: { labels, datasets: [{ data: values, backgroundColor: labels.map((_,i)=>colors[i%colors.length]) }] },
+        options: { responsive: false, plugins: { legend: { display: true }, title: { display: true, text: 'Resumo por categoria' } } }
+      })
+      // wait a tick to ensure rendering
+      await new Promise(r => setTimeout(r, 250))
+      const dataUrl = canvas.toDataURL('image/png')
+      chart.destroy()
+      canvas.style.display = 'none'
+
+      // add image to workbook (base64 without prefix)
+      const imageId = workbook.addImage({ base64: dataUrl.split(',')[1], extension: 'png' })
+      ws2.addImage(imageId, { tl: { col: 3, row: 1 }, ext: { width: 400, height: 300 } })
+
+      // export
+      const buffer = await workbook.xlsx.writeBuffer()
+      const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url; a.download = 'gastos.xlsx'; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url)
+    }
+
+    // Export everything: transactions + settings (limits, categories) in a single CSV with settings JSON appended
+    function exportAll(){
+      const data = readExpenses()
+      const limits = getLimits()
+      const categories = getCategories()
+      // build CSV for transactions
+      const rows = [['date','desc','category','amount','kind'], ...data.map(r=>[r.date, r.desc, r.category, r.amount, r.kind||'Despesa'])]
+      const csv = rows.map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n')
+      const settings = { limits, categories }
+      const combined = csv + '\n#__SETTINGS__\n' + JSON.stringify(settings)
+      const blob = new Blob([combined], {type:'text/plain;charset=utf-8;'})
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url; a.download = 'gastos_backup.csv'; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url)
+    }
+
+    // simple CSV parser for rows (handles quoted fields)
+    function parseCSV(text){
+      const lines = text.split(/\r?\n/)
+      const rows = []
+      for(const line of lines){
+        if(line.trim()==='') continue
+        const row = []
+        let cur = ''
+        let inQuotes = false
+        for(let i=0;i<line.length;i++){
+          const ch = line[i]
+          if(ch==='"'){
+            if(inQuotes && line[i+1]==='"'){ cur += '"'; i++; continue }
+            inQuotes = !inQuotes
+            continue
+          }
+          if(ch===',' && !inQuotes){ row.push(cur); cur=''; continue }
+          cur += ch
+        }
+        row.push(cur)
+        rows.push(row)
+      }
+      return rows
+    }
+
+    function importFromText(content){
+      // detect separator
+      if(content.indexOf('#__SETTINGS__')!==-1){
+        const parts = content.split('#__SETTINGS__')
+        const csvPart = parts[0].trim()
+        const settingsPart = parts.slice(1).join('#__SETTINGS__').trim()
+        let settings = {}
+        try{ settings = JSON.parse(settingsPart) }catch(e){ console.error('Erro ao parsear settings', e) }
+        const rows = parseCSV(csvPart)
+        if(rows.length<=1) return showToast('Arquivo sem transações','error')
+        const header = rows[0].map(h=>h.trim())
+        const data = rows.slice(1).map(r=>{
+          const obj = {}
+          for(let i=0;i<header.length;i++) obj[header[i]] = r[i]
+          return { date: obj.date||'', desc: obj.desc||'', category: obj.category||'', amount: parseFloat(obj.amount)||0, kind: obj.kind||'Despesa' }
+        })
+        // persist
+        writeExpenses(data)
+        if(settings.limits) saveLimits(settings.limits)
+        if(settings.categories) saveCategories(settings.categories)
+        updateCategorySelects()
+        try{ refreshAll() }catch(e){}
+        showToast('Dados importados com sucesso','success')
+        return
+      }
+      // try JSON
+      try{
+        const parsed = JSON.parse(content)
+        if(Array.isArray(parsed.expenses) || Array.isArray(parsed)){ // support structures
+          const expenses = Array.isArray(parsed.expenses)? parsed.expenses : parsed
+          writeExpenses(expenses)
+          if(parsed.limits) saveLimits(parsed.limits)
+          if(parsed.categories) saveCategories(parsed.categories)
+          updateCategorySelects()
+          try{ refreshAll() }catch(e){}
+          showToast('Dados importados com sucesso','success')
+          return
+        }
+      }catch(e){}
+      // fallback: assume plain CSV of transactions
+      const rows = parseCSV(content)
+      if(rows.length<=1) return showToast('Arquivo não reconhecido','error')
+      const header = rows[0].map(h=>h.trim())
+      const data = rows.slice(1).map(r=>{
+        const obj = {}
+        for(let i=0;i<header.length;i++) obj[header[i]] = r[i]
+        return { date: obj.date||'', desc: obj.desc||'', category: obj.category||'', amount: parseFloat(obj.amount)||0, kind: obj.kind||'Despesa' }
+      })
+      writeExpenses(data)
+      try{ refreshAll() }catch(e){}
+      showToast('Transações importadas','success')
+    }
+
+    // init
+    document.addEventListener('DOMContentLoaded',()=>{
+      const today = new Date().toISOString().slice(0,10)
+      $('date').value = today
+      render()
+      renderLimits()
+      updateCategorySelects()
+      // activate default tab -> Home
+      switchTab('tab-home')
+      // nav tab buttons
+      document.querySelectorAll('.tab-btn').forEach(b=> b.addEventListener('click', ev=>{
+        // use currentTarget so clicks on inner elements (svg/span) still reference the correct button
+        const tabId = ev.currentTarget && ev.currentTarget.dataset ? ev.currentTarget.dataset.tab : null
+        if(tabId) switchTab(tabId)
+        // only close the drawer on small screens where it is a transient panel
+        try{ if(window.innerWidth < 900) closeDrawer() }catch(e){}
+      }))
+      // drawer toggle
+      $('hamburger').addEventListener('click', ()=> toggleDrawer())
+      $('drawer-overlay').addEventListener('click', ()=> closeDrawer())
+      $('add-btn').addEventListener('click', addExpense)
+      $('clear-btn').addEventListener('click', clearAll)
+      $('apply-filter').addEventListener('click', applyFilterAndRender)
+      $('export-csv').addEventListener('click', ()=> exportCSV())
+      $('export-xlsx').addEventListener('click', ()=> exportXLSX())
+      const expAll = document.getElementById('export-all')
+      if(expAll) expAll.addEventListener('click', ()=> exportAll())
+      const impBtn = document.getElementById('import-btn')
+      const impFile = document.getElementById('import-file')
+      if(impBtn && impFile){
+        impBtn.addEventListener('click', ()=> impFile.click())
+        impFile.addEventListener('change', (ev)=>{
+          const f = ev.target.files[0]
+          if(!f) return
+          const reader = new FileReader()
+          reader.onload = (e)=>{
+              try{ importFromText(e.target.result) }catch(err){ showToast('Erro ao importar: '+err.message,'error') }
+            }
+          reader.readAsText(f)
+          // reset input
+          impFile.value = ''
+        })
+      }
+      // Settings are auto-saved; no Save button required
+      // drawer quick actions
+      
+      
+      // drawer-close button removed; no listener needed
+      // ensure drawer is fixed/open on large screens
+      function updateDrawerForWidth(){
+        const d = document.getElementById('drawer')
+        const ham = document.getElementById('hamburger')
+        const o = document.getElementById('drawer-overlay')
+        if(window.innerWidth >= 900){
+          if(d && !d.classList.contains('open')) d.classList.add('open')
+          if(d) d.setAttribute('aria-hidden', 'false')
+          if(o) o.classList.remove('open')
+          if(ham) ham.style.display = 'none'
+        } else {
+          // on small screens start closed
+          if(d && d.classList.contains('open')) d.classList.remove('open')
+          if(d) d.setAttribute('aria-hidden', 'true')
+          if(ham) ham.style.display = ''
+        }
+      }
+      updateDrawerForWidth()
+      window.addEventListener('resize', updateDrawerForWidth)
+    })
+
+    function toggleDrawer(){
+      const d = document.getElementById('drawer')
+      const o = document.getElementById('drawer-overlay')
+      const open = d.classList.toggle('open')
+      o.classList.toggle('open', open)
+      d.setAttribute('aria-hidden', !open)
+      // hide hamburger while drawer is open to avoid overlap
+      const ham = document.getElementById('hamburger')
+      if(ham) ham.style.display = open ? 'none' : ''
+    }
+    function closeDrawer(){
+      const d = document.getElementById('drawer')
+      const o = document.getElementById('drawer-overlay')
+      d.classList.remove('open')
+      o.classList.remove('open')
+      d.setAttribute('aria-hidden', 'true')
+      const ham = document.getElementById('hamburger')
+      if(ham) ham.style.display = ''
+    }
+
+    function switchTab(tabId){
+      document.querySelectorAll('.tab-content').forEach(s=> s.style.display = 'none')
+      const el = document.getElementById(tabId)
+      if(el) el.style.display = 'block'
+      // update header title according to active tab
+      const titles = {
+        'tab-home': 'Dashboard',
+        'tab-transactions': 'Transações',
+        'tab-report': 'Relatório',
+        'tab-settings': 'Configurações'
+      }
+      const header = document.querySelector('.app-header h1')
+      if(header){
+        if(tabId === 'tab-home'){
+          // ensure dashboard is rendered first so month label is available, then update header
+          try{ renderHome() }catch(e){}
+          // header stays as plain 'Dashboard' — month label is shown in the selector area
+          header.textContent = 'Dashboard'
+        } else {
+          header.textContent = titles[tabId] || 'Assistente de Gastos'
+        }
+      }
+      // highlight active button
+      document.querySelectorAll('.tab-btn').forEach(b=> b.classList.toggle('active', b.dataset.tab===tabId))
+      // if switching to transactions, ensure it's rendered
+      if(tabId==='tab-transactions') renderTransactions()
+      if(tabId==='tab-report') showReport()
+      if(tabId==='tab-settings') renderLimits()
+    }
+
+  
+  </script>
+
+  <!-- Hidden canvas for chart rendering and libraries -->
+  <canvas id="chart-canvas" width="800" height="600" style="display:none"></canvas>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/exceljs/dist/exceljs.min.js"></script>
+</body>
+</html>
