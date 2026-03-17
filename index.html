@@ -19,10 +19,12 @@
 
     /* ── Wrapper ── */
     .banner {
-      width: 420px;
+      width: 100%;
+      max-width: 420px;
       background: #ffffff;
       overflow: hidden;
       position: relative;
+      min-height: 100vh;
     }
 
     /* ════════════════════════════════════
@@ -193,6 +195,22 @@
 
     .intro strong {
       font-weight: 700;
+    }
+
+    /* ── Responsividade Mobile ── */
+    img {
+      max-width: 100%;
+      height: auto;
+    }
+
+    @media (max-width: 480px) {
+      body {
+        padding: 0;
+      }
+      .banner {
+        max-width: 100%;
+        width: 100%;
+      }
     }
   </style>
 </head>
