@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>FLAME 2026 – 2° Congresso Latino-americano de Medicina de Emergência</title>
+  <style>
+    /* ── Reset ── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', Arial, sans-serif;
+      background: #d6e8f5;
+      display: flex;
+      justify-content: center;
+      padding: 0;
+      overflow-x: hidden;
+    }
+
+    /* ── Wrapper ── */
+    .banner {
+      width: 420px;
+      background: #ffffff;
+      overflow: hidden;
+      position: relative;
+    }
+
+    /* ════════════════════════════════════
+       HAMBURGER BUTTON
+    ════════════════════════════════════ */
+    .hamburger-btn {
+      position: fixed;
+      top: 14px;
+      left: 14px;
+      z-index: 1000;
+      width: 44px;
+      height: 44px;
+      background: #c8102e;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 5px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+      transition: background 0.2s;
+    }
+
+    .hamburger-btn:hover {
+      background: #a00d24;
+    }
+
+    .hamburger-btn span {
+      display: block;
+      width: 22px;
+      height: 2.5px;
+      background: #fff;
+      border-radius: 2px;
+      transition: transform 0.3s, opacity 0.3s;
+    }
+
+    .hamburger-btn.active span:nth-child(1) {
+      transform: translateY(7.5px) rotate(45deg);
+    }
+    .hamburger-btn.active span:nth-child(2) {
+      opacity: 0;
+    }
+    .hamburger-btn.active span:nth-child(3) {
+      transform: translateY(-7.5px) rotate(-45deg);
+    }
+
+    /* ════════════════════════════════════
+       OVERLAY
+    ════════════════════════════════════ */
+    .overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0,0,0,0.5);
+      z-index: 998;
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity 0.3s, visibility 0.3s;
+    }
+
+    .overlay.active {
+      opacity: 1;
+      visibility: visible;
+    }
+
+    /* ════════════════════════════════════
+       SIDE MENU
+    ════════════════════════════════════ */
+    .side-menu {
+      position: fixed;
+      top: 0;
+      left: -280px;
+      width: 280px;
+      height: 100%;
+      background: #1b2b6b;
+      z-index: 999;
+      transition: left 0.3s ease;
+      overflow-y: auto;
+      box-shadow: 4px 0 20px rgba(0,0,0,0.3);
+    }
+
+    .side-menu.active {
+      left: 0;
+    }
+
+    .side-menu-header {
+      background: #c8102e;
+      padding: 28px 20px 20px;
+      color: #fff;
+    }
+
+    .side-menu-header h2 {
+      font-size: 18px;
+      font-weight: 800;
+      margin-bottom: 4px;
+    }
+
+    .side-menu-header p {
+      font-size: 11px;
+      opacity: 0.85;
+    }
+
+    .side-menu-nav {
+      list-style: none;
+      padding: 12px 0;
+    }
+
+    .side-menu-nav li {
+      border-bottom: 1px solid rgba(255,255,255,0.1);
+    }
+
+    .side-menu-nav li a {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 16px 20px;
+      color: #fff;
+      text-decoration: none;
+      font-size: 14px;
+      font-weight: 600;
+      transition: background 0.2s;
+    }
+
+    .side-menu-nav li a:hover,
+    .side-menu-nav li a.active {
+      background: rgba(255,255,255,0.1);
+    }
+
+    .side-menu-nav li a .nav-icon {
+      font-size: 18px;
+      width: 24px;
+      text-align: center;
+    }
+
+    /* ════════════════════════════════════
+       PAGE SECTIONS
+    ════════════════════════════════════ */
+    .page {
+      display: none;
+    }
+
+    .page.active {
+      display: block;
+    }
+
+    /* ════════════════════════════════════
+       CURSO DE GESTÃO PAGE
+    ════════════════════════════════════ */
+    .curso-page img {
+      width: 100%;
+      display: block;
+    }
+
+    /* ════════════════════════════════════
+       EXISTING STYLES
+    ════════════════════════════════════ */
+    .intro {
+      background: #eaf4fb;
+      padding: 16px 18px;
+      font-size: 12.5px;
+      color: #222;
+      line-height: 1.65;
+    }
+
+    .intro strong {
+      font-weight: 700;
+    }
+  </style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════
+     HAMBURGER BUTTON
+══════════════════════════════════ -->
+<button class="hamburger-btn" id="hamburgerBtn" aria-label="Menu">
+  <span></span>
+  <span></span>
+  <span></span>
+</button>
+
+<!-- ══════════════════════════════════
+     OVERLAY
+══════════════════════════════════ -->
+<div class="overlay" id="overlay"></div>
+
+<!-- ══════════════════════════════════
+     SIDE MENU
+══════════════════════════════════ -->
+<nav class="side-menu" id="sideMenu">
+  <div class="side-menu-header">
+    <h2>FLAME 2026</h2>
+    <p>2° Congresso Latino-americano de Medicina de Emergência</p>
+  </div>
+  <ul class="side-menu-nav">
+    <li><a href="#" data-page="principal" class="active"><span class="nav-icon">🏠</span> Página Principal</a></li>
+    <li><a href="#" data-page="gestao"><span class="nav-icon">📋</span> Curso de Gestão</a></li>
+  </ul>
+</nav>
+
+<!-- ══════════════════════════════════
+     BANNER WRAPPER
+══════════════════════════════════ -->
+<div class="banner">
+
+  <!-- ══════════════════════════════════
+       PÁGINA PRINCIPAL
+  ══════════════════════════════════ -->
+  <div class="page active" id="page-principal">
+    <header style="padding:0; margin:0; line-height:0;">
+      <img src="assets/ChatGPT Image Feb 28, 2026 at 09_30_48 PM.png" alt="Header FLAME 2026" style="width:100%; display:block;">
+    </header>
+
+    <section class="intro">
+      O FLAME 2026 reúne lideranças, especialistas e residentes para discutir os rumos da Medicina de Emergência na América Latina, com foco em <strong>prática real, atualização científica</strong> e visão estratégica da especialidade.
+    </section>
+
+    <section style="padding:0; margin:0; line-height:0;">
+      <img src="assets/ChatGPT Image Feb 28, 2026 at 09_30_28 PM.png" alt="Categoria exclusiva para Residentes" style="width:100%; display:block;">
+    </section>
+
+    <section style="padding:0; margin:0; line-height:0;">
+      <img src="assets/ChatGPT Image Mar 1, 2026 at 09_13_00 AM.png" alt="Atenção à data" style="width:100%; display:block;">
+    </section>
+
+    <section style="padding:0; margin:0; line-height:0;">
+      <img src="assets/ChatGPT Image Mar 1, 2026 at 09_13_03 AM.png" alt="Curso Pré-Congresso POCUS Básico" style="width:100%; display:block;">
+    </section>
+
+    <section style="padding:0; margin:0; line-height:0;">
+      <img src="assets/WhatsApp Image 2026-03-01 at 09.16.36.jpeg" alt="Palestra Magna" style="width:100%; display:block;">
+    </section>
+  </div>
+
+  <!-- ══════════════════════════════════
+       PÁGINA CURSO DE GESTÃO
+  ══════════════════════════════════ -->
+  <div class="page curso-page" id="page-gestao">
+    <img src="assets/cursos/Gestão do Departamento de Emergência_20260317_140351_0000.png" alt="Curso de Gestão do Departamento de Emergência - Apresentação">
+    <img src="assets/cursos/Gestão do Departamento de Emergência_20260317_140351_0001.png" alt="Curso de Gestão do Departamento de Emergência - O que você vai aprender">
+    <img src="assets/cursos/Gestão do Departamento de Emergência_20260317_140352_0007.png" alt="Curso de Gestão do Departamento de Emergência - Para quem é este curso">
+  </div>
+
+</div>
+
+<script>
+  const hamburgerBtn = document.getElementById('hamburgerBtn');
+  const sideMenu = document.getElementById('sideMenu');
+  const overlay = document.getElementById('overlay');
+  const navLinks = document.querySelectorAll('.side-menu-nav a');
+
+  function toggleMenu() {
+    hamburgerBtn.classList.toggle('active');
+    sideMenu.classList.toggle('active');
+    overlay.classList.toggle('active');
+  }
+
+  function closeMenu() {
+    hamburgerBtn.classList.remove('active');
+    sideMenu.classList.remove('active');
+    overlay.classList.remove('active');
+  }
+
+  hamburgerBtn.addEventListener('click', toggleMenu);
+  overlay.addEventListener('click', closeMenu);
+
+  navLinks.forEach(link => {
+    link.addEventListener('click', function(e) {
+      e.preventDefault();
+      const targetPage = this.getAttribute('data-page');
+
+      // Update active nav link
+      navLinks.forEach(l => l.classList.remove('active'));
+      this.classList.add('active');
+
+      // Show target page
+      document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+      document.getElementById('page-' + targetPage).classList.add('active');
+
+      closeMenu();
+
+      // Scroll to top
+      window.scrollTo(0, 0);
+    });
+  });
+</script>
+
+</body>
+</html>
